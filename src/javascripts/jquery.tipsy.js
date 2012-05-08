@@ -1,3 +1,10 @@
+/**
+ * ptipsy: persistent tipsy
+ * Your favorite tipsy tooltip goes persistent on mouse click
+ * 
+ * @author: abhishek dilliwal (mail@dilliwal.com) Persistent behavior
+ * @author: jason frame [jason@onehackoranother.com] Tipsy Author
+ */
 // tipsy, facebook style tooltips for jquery
 // version 1.0.0a
 // (c) 2008-2010 jason frame [jason@onehackoranother.com]
@@ -17,8 +24,9 @@
     };
     
     Tipsy.prototype = {
-        show: function() {
-            var title = this.getTitle();
+        isGlobalBinded: false,
+        show: function(content) {
+            var title = content == null ? this.getTitle() : content;
             if (title && this.enabled) {
                 var $tip = this.tip();
                 
@@ -118,8 +126,31 @@
         
         enable: function() { this.enabled = true; },
         disable: function() { this.enabled = false; },
-        toggleEnabled: function() { this.enabled = !this.enabled; }
+        toggleEnabled: function() { this.enabled = !this.enabled; },
+        bindGlobal: function(){
+            if(Tipsy.prototype.isGlobalBinded === false){
+                $(document).bind('click', function(){
+                    $('.tipsy').remove();
+                });
+                $('.tipsy').live('click', function(e){
+                    e.stopPropagation();
+                });
+                $(document).keyup(function(e) {
+                    if (e.keyCode == 27) {$('.tipsy').remove();} 
+                });
+                Tipsy.prototype.isGlobalBinded = true;
+            }
+        }
     };
+    
+    /**
+     * Extending the functions of tipsy
+     */
+    Tipsy.prototype = $.extend(Tipsy.prototype, {
+        setContent: function(content){
+            this.show(content);
+        }
+    });
     
     $.fn.tipsy = function(options) {
         
@@ -127,11 +158,19 @@
             return this.data('tipsy');
         } else if (typeof options == 'string') {
             var tipsy = this.data('tipsy');
-            if (tipsy) tipsy[options]();
+//            if (tipsy) tipsy[options]();
+            if (tipsy) tipsy[options].apply(tipsy, Array.prototype.slice.call( arguments, 1 ));
             return this;
         }
         
         options = $.extend({}, $.fn.tipsy.defaults, options);
+        
+        /**
+         * for persistent tooltip we want some options to be mandatory
+         */
+        if(options.persistent === true){
+            options = $.extend(options, {html: true});
+        }
         
         function get(ele) {
             var tipsy = $.data(ele, 'tipsy');
@@ -151,6 +190,7 @@
                 tipsy.fixTitle();
                 setTimeout(function() { if (tipsy.hoverState == 'in') tipsy.show(); }, options.delayIn);
             }
+            $(this).trigger('ptipsy_show');
         };
         
         function leave() {
@@ -161,15 +201,29 @@
             } else {
                 setTimeout(function() { if (tipsy.hoverState == 'out') tipsy.hide(); }, options.delayOut);
             }
+            $(this).trigger('ptipsy_hide');
         };
         
         if (!options.live) this.each(function() { get(this); });
         
         if (options.trigger != 'manual') {
-            var binder   = options.live ? 'live' : 'bind',
-                eventIn  = options.trigger == 'hover' ? 'mouseenter' : 'focus',
-                eventOut = options.trigger == 'hover' ? 'mouseleave' : 'blur';
-            this[binder](eventIn, enter)[binder](eventOut, leave);
+            if(options.persistent){
+                get(this).bindGlobal();
+                $(this).bind('click', function(e){
+                    if($(get(this).tip()).is(':hidden')){
+                        enter.call(this);
+                    }else{
+                        leave.call(this);
+                    }
+                    e.stopPropagation();
+                    return false;
+                });
+            }else{
+                var binder   = options.live ? 'live' : 'bind',
+                    eventIn  = options.trigger == 'hover' ? 'mouseenter' : 'focus',
+                    eventOut = options.trigger == 'hover' ? 'mouseleave' : 'blur';
+                this[binder](eventIn, enter)[binder](eventOut, leave);
+            }
         }
         
         return this;
@@ -188,7 +242,8 @@
         offset: 0,
         opacity: 0.8,
         title: 'title',
-        trigger: 'hover'
+        trigger: 'hover',
+        persistent: false
     };
     
     // Overwrite this method to provide options on a per-element basis.
@@ -223,19 +278,19 @@
      *        component.
      */
      $.fn.tipsy.autoBounds = function(margin, prefer) {
-		return function() {
-			var dir = {ns: prefer[0], ew: (prefer.length > 1 ? prefer[1] : false)},
-			    boundTop = $(document).scrollTop() + margin,
-			    boundLeft = $(document).scrollLeft() + margin,
-			    $this = $(this);
+        return function() {
+            var dir = {ns: prefer[0], ew: (prefer.length > 1 ? prefer[1] : false)},
+                boundTop = $(document).scrollTop() + margin,
+                boundLeft = $(document).scrollLeft() + margin,
+                $this = $(this);
 
-			if ($this.offset().top < boundTop) dir.ns = 'n';
-			if ($this.offset().left < boundLeft) dir.ew = 'w';
-			if ($(window).width() + $(document).scrollLeft() - $this.offset().left < margin) dir.ew = 'e';
-			if ($(window).height() + $(document).scrollTop() - $this.offset().top < margin) dir.ns = 's';
+            if ($this.offset().top < boundTop) dir.ns = 'n';
+            if ($this.offset().left < boundLeft) dir.ew = 'w';
+            if ($(window).width() + $(document).scrollLeft() - $this.offset().left < margin) dir.ew = 'e';
+            if ($(window).height() + $(document).scrollTop() - $this.offset().top < margin) dir.ns = 's';
 
-			return dir.ns + (dir.ew ? dir.ew : '');
-		}
-	};
+            return dir.ns + (dir.ew ? dir.ew : '');
+        }
+    };
     
 })(jQuery);
